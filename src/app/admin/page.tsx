@@ -45,7 +45,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import type { DashboardStats, FraudAlert, ReasoningStep } from '@/lib/agent/types';
+import type { DashboardStats, FraudAlert, ReasoningStep, ConversationMessage } from '@/lib/agent/types';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -67,6 +67,7 @@ interface ConversationSummary {
   denialCount?: number;
   status: string;
   lastActivity: string;
+  messages?: ConversationMessage[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -181,6 +182,7 @@ export default function AdminDashboard() {
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([]);
   const [activeConversations, setActiveConversations] = useState(0);
   const [conversationSummaries, setConversationSummaries] = useState<ConversationSummary[]>([]);
+  const [selectedChat, setSelectedChat] = useState<ConversationSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   /* ── fetch stats ── */
@@ -724,9 +726,19 @@ export default function AdminDashboard() {
                                   </div>
                                 </div>
                               </div>
-                              <span className="text-[10px] text-muted-foreground/30 font-mono shrink-0">
-                                {conv.conversationId?.slice(0, 6)}
-                              </span>
+                              <div className="flex flex-col items-end gap-2">
+                                <span className="text-[10px] text-muted-foreground/30 font-mono shrink-0">
+                                  {conv.conversationId?.slice(0, 6)}
+                                </span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 px-2 text-[10px] bg-primary/10 hover:bg-primary/20 text-primary"
+                                  onClick={() => setSelectedChat(conv)}
+                                >
+                                  View Chat
+                                </Button>
+                              </div>
                             </div>
                           </motion.div>
                         ))
@@ -739,6 +751,53 @@ export default function AdminDashboard() {
           </div>
         </div>
       </ScrollArea>
+
+      {/* ── Chat Modal ── */}
+      <AnimatePresence>
+        {selectedChat && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border border-border/50 shadow-2xl rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col h-[80vh]"
+            >
+              <div className="p-4 border-b border-border/50 flex items-center justify-between bg-card/50">
+                <div>
+                  <h3 className="font-bold">Chat Logs: {selectedChat.customerName ?? selectedChat.customerId}</h3>
+                  <p className="text-xs text-muted-foreground">ID: {selectedChat.conversationId}</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setSelectedChat(null)}>
+                  <XCircle className="h-5 w-5 text-muted-foreground hover:text-red-400 transition-colors" />
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 p-4 bg-background/50">
+                <div className="space-y-4 pb-4">
+                  {!selectedChat.messages || selectedChat.messages.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground mt-10">No messages found.</p>
+                  ) : (
+                    selectedChat.messages.map((msg: any) => (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-primary-foreground self-end ml-auto rounded-br-sm'
+                            : 'bg-card border border-border/50 self-start mr-auto rounded-bl-sm'
+                        }`}
+                      >
+                        <span className="text-[10px] opacity-70 mb-1 uppercase tracking-wider font-semibold">
+                          {msg.role === 'user' ? 'Customer' : 'AI Agent'}
+                        </span>
+                        <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
