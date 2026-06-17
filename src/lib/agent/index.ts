@@ -60,35 +60,36 @@ export async function processMessage(
   steps.push(ragResult.reasoningStep);
   ragData = ragResult.data;
 
-  if (conversationState.customerId) {
-    // Lookup customer
-    const lookupResult = await lookupCustomer(conversationState.customerId, conversationId);
-    steps.push(lookupResult.reasoningStep);
-    customerData = lookupResult.data;
+  const targetCustomerId = conversationState.customerId || 'GUEST';
 
-    // Calculate fraud score
-    const fraudResult = await calculateFraudScore(conversationState.customerId, conversationId);
-    steps.push(fraudResult.reasoningStep);
-    fraudData = fraudResult.data;
+  // Lookup customer
+  const lookupResult = await lookupCustomer(targetCustomerId, conversationId);
+  steps.push(lookupResult.reasoningStep);
+  customerData = lookupResult.data;
 
-    // Detect if this is a refund request and validate policy
-    const isRefundRequest = /refund|return|money back|cancel order|damaged|defective|wrong item/i.test(userMessage);
+  // Calculate fraud score
+  const fraudResult = await calculateFraudScore(targetCustomerId, conversationId);
+  steps.push(fraudResult.reasoningStep);
+  fraudData = fraudResult.data;
 
-    if (isRefundRequest && customerData?.orders?.length > 0) {
-      const latestOrder = customerData.orders[0];
-      const hasProof = /receipt|proof|photo|screenshot|picture|image/i.test(userMessage);
+  // Detect if this is a refund request and validate policy
+  const isRefundRequest = /refund|return|money back|cancel order|damaged|defective|wrong item/i.test(userMessage);
 
-      const policyResult = await validatePolicy(
-        conversationState.customerId,
-        latestOrder.id,
-        userMessage,
-        hasProof,
-        latestOrder.total,
-        conversationId
-      );
-      steps.push(policyResult.reasoningStep);
-      policyData = policyResult.data;
-    }
+  if (isRefundRequest) {
+    const hasProof = /receipt|proof|photo|screenshot|picture|image/i.test(userMessage);
+    const orderId = customerData?.orders?.[0]?.id || 'UNKNOWN';
+    const total = customerData?.orders?.[0]?.total || 0;
+
+    const policyResult = await validatePolicy(
+      targetCustomerId,
+      orderId,
+      userMessage,
+      hasProof,
+      total,
+      conversationId
+    );
+    steps.push(policyResult.reasoningStep);
+    policyData = policyResult.data;
   }
 
   // Step 3: Build context for LLM
