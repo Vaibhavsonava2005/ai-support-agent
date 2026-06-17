@@ -1,9 +1,5 @@
 import Groq from 'groq-sdk';
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_build',
-});
-
 export interface LLMResponse {
   content: string;
   usage?: {
@@ -21,6 +17,10 @@ export async function callGroq(
     temperature?: number;
   } = {}
 ): Promise<LLMResponse> {
+  const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_build',
+  });
+
   const { jsonMode = false, maxTokens = 2048, temperature = 0.3 } = options;
 
   const maxRetries = 3;
@@ -61,5 +61,3 @@ export async function callGroq(
 
   throw new Error(`Groq API failed after ${maxRetries} attempts: ${lastError?.message}`);
 }
-
-export { groq };

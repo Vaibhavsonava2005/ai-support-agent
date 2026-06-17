@@ -4,6 +4,14 @@ import { validateRefundPolicy } from './policy';
 import { addFraudAlert, addReasoningStep } from '@/lib/crm/store';
 import { generateId } from '@/lib/utils';
 
+// Mock Knowledge Base for RAG
+const knowledgeBase = [
+  { id: 'KB-01', title: 'Order Status & Tracking', content: 'Customers can track their orders via the website dashboard. Domestic shipping takes 3-5 business days. International shipping takes 7-14 business days.' },
+  { id: 'KB-02', title: 'Return Window Policy', content: 'Items can be returned within 90 days of purchase. The customer must provide proof of purchase. Refunds are issued to the original payment method.' },
+  { id: 'KB-03', title: 'Exchanges & Store Credit', content: 'We offer a 110% store credit bonus if the customer opts for store credit instead of a refund. Exchanges are free of charge.' },
+  { id: 'KB-04', title: 'Damaged Items', content: 'If an item arrives damaged or defective, the customer is entitled to a full refund immediately. Photo proof is recommended but not strictly required for VIPs.' },
+];
+
 export interface ToolResult {
   success: boolean;
   data: any;
@@ -201,6 +209,45 @@ export async function escalateToHuman(
   return {
     success: true,
     data: step.output,
+    reasoningStep: step,
+  };
+}
+
+export async function retrieveKnowledgeBase(query: string, conversationId: string): Promise<ToolResult> {
+  const startTime = Date.now();
+  
+  // Simple keyword matching for RAG
+  const keywords = query.toLowerCase().split(' ').filter(w => w.length > 3);
+  let bestMatch = knowledgeBase[0];
+  let maxScore = 0;
+  
+  for (const doc of knowledgeBase) {
+    let score = 0;
+    const docText = (doc.title + ' ' + doc.content).toLowerCase();
+    for (const kw of keywords) {
+      if (docText.includes(kw)) score++;
+    }
+    if (score > maxScore) {
+      maxScore = score;
+      bestMatch = doc;
+    }
+  }
+
+  const step: ReasoningStep = {
+    id: generateId(),
+    timestamp: new Date().toISOString(),
+    tool: 'retrieve_knowledge_base',
+    input: { query },
+    output: { documentId: bestMatch.id, content: bestMatch.content },
+    duration: Date.now() - startTime,
+    status: 'completed',
+  };
+
+  addReasoningStep(conversationId, step);
+
+  return {
+    success: true,
+    data: bestMatch,
     reasoningStep: step,
   };
 }

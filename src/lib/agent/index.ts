@@ -1,5 +1,5 @@
 import { AgentDecision, AgentState, ConversationMessage, ReasoningStep, RefundStatus } from './types';
-import { lookupCustomer, validatePolicy, calculateFraudScore, escalateToHuman } from './tools';
+import { lookupCustomer, validatePolicy, calculateFraudScore, escalateToHuman, retrieveKnowledgeBase } from './tools';
 import { REFUND_POLICY } from './policy';
 import { callGroq } from '@/lib/groq';
 import { getCustomerById } from '@/lib/crm/data';
@@ -53,6 +53,12 @@ export async function processMessage(
   let customerData = null;
   let fraudData = null;
   let policyData = null;
+  let ragData = null;
+
+  // Retrieve context from knowledge base (RAG)
+  const ragResult = await retrieveKnowledgeBase(userMessage, conversationId);
+  steps.push(ragResult.reasoningStep);
+  ragData = ragResult.data;
 
   if (conversationState.customerId) {
     // Lookup customer
@@ -98,6 +104,7 @@ export async function processMessage(
       orders: customerData.orders?.map((o: any) => ({ id: o.id, total: o.total, daysSincePurchase: o.daysSincePurchase, items: o.items.map((i: any) => i.name) })),
     } : null,
     fraud: fraudData,
+    knowledgeBaseInfo: ragData ? { title: ragData.title, content: ragData.content } : null,
     policy: policyData ? {
       canProcess: policyData.canProcess,
       recommendedAction: policyData.recommendedAction,

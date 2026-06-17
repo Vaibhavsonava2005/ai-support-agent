@@ -164,7 +164,7 @@ export default function ChatPage() {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    if (typeof customText !== 'string') setInputValue('');
+    setInputValue('');
     setIsLoading(true);
 
     try {
