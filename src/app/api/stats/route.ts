@@ -13,13 +13,13 @@ export async function GET() {
     recentReasoningSteps: recentSteps.slice(-50),
     activeConversations: conversations.length,
     conversationSummaries: conversations.slice(-20).map(c => ({
-      id: c.conversationId,
+      conversationId: c.conversationId,
       customerId: c.customerId,
+      customerName: c.customerId,
       messageCount: c.messages.length,
       denialCount: c.denialCount,
-      isEscalated: c.isEscalated,
-      decision: c.currentDecision?.status,
-      startedAt: c.startedAt,
+      status: c.isEscalated ? 'escalated' : c.currentDecision?.status || 'active',
+      lastActivity: c.startedAt,
     })),
   });
 }

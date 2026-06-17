@@ -110,3 +110,20 @@ export function incrementDenials(conversationId: string): number {
   }
   return 0;
 }
+
+export function resetStore() {
+  conversations.clear();
+  allReasoningSteps.length = 0;
+  fraudAlerts.length = 0;
+  stats = {
+    totalConversations: 0,
+    approvedRefunds: 0,
+    deniedRefunds: 0,
+    escalatedCases: 0,
+    avgConfidence: 0,
+    avgResponseTime: 0,
+    fraudAlerts: 0,
+    totalRefundAmount: 0,
+  };
+  broadcast('stats_update', stats);
+}

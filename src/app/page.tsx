@@ -125,6 +125,11 @@ export default function ChatPage() {
     load();
   }, []);
 
+  // Clear backend logs on page refresh for pristine demo sessions
+  useEffect(() => {
+    fetch('/api/reset', { method: 'POST' }).catch(() => {});
+  }, []);
+
   /* ---- auto-scroll ---- */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
