@@ -236,6 +236,7 @@ export default function ChatPage() {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       let silenceStart = Date.now();
       let vadInterval: NodeJS.Timeout;
+      let hasSpoken = false;
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
@@ -251,7 +252,7 @@ export default function ChatPage() {
           formData.append('audio', blob);
           const res = await fetch('/api/stt', { method: 'POST', body: formData });
           const data = await res.json();
-          if (data.transcript) {
+          if (data.transcript && data.transcript.trim().length > 0) {
             setInputValue(data.transcript);
             handleSend(data.transcript, true);
           }
@@ -269,10 +270,13 @@ export default function ChatPage() {
         analyser.getByteFrequencyData(dataArray);
         const max = Math.max(...dataArray);
         if (max > 10) { 
+          hasSpoken = true;
           silenceStart = Date.now();
         } else {
-          if (Date.now() - silenceStart > 1800) { 
+          if (hasSpoken && Date.now() - silenceStart > 2000) { 
              recorder.stop();
+          } else if (!hasSpoken && Date.now() - silenceStart > 10000) {
+             recorder.stop(); // Stop if no speech for 10 seconds
           }
         }
       }, 100);

@@ -140,7 +140,14 @@ Based on the tool results and conversation history, provide your response as a J
     try {
       const llmResult = await callGroq(llmMessages, { jsonMode: true, temperature: 0.3 });
 
-      const parsed = JSON.parse(llmResult.content);
+      let parsed;
+      try {
+        const jsonMatch = llmResult.content.match(/\{[\s\S]*\}/);
+        const jsonString = jsonMatch ? jsonMatch[0] : llmResult.content;
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        throw new Error("Failed to parse JSON: " + llmResult.content);
+      }
       agentResponse = parsed.response || 'I apologize, but I\'m having trouble processing your request. Could you please try again?';
 
       if (parsed.decision) {
