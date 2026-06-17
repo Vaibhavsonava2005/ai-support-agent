@@ -152,8 +152,9 @@ export default function ChatPage() {
   );
 
   /* ---- send message ---- */
-  const handleSend = useCallback(async () => {
-    const text = inputValue.trim();
+  const handleSend = useCallback(async (customText?: string | React.MouseEvent | React.KeyboardEvent, autoVoice: boolean = false) => {
+    const textStr = typeof customText === 'string' ? customText : inputValue;
+    const text = textStr.trim();
     if (!text || isLoading || !selectedCustomer) return;
 
     const userMsg: ChatMessage = {
@@ -163,7 +164,7 @@ export default function ChatPage() {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInputValue('');
+    if (typeof customText !== 'string') setInputValue('');
     setIsLoading(true);
 
     try {
@@ -180,16 +181,24 @@ export default function ChatPage() {
 
       if (data.conversationId) setConversationId(data.conversationId);
 
+      const agentMsgId = `agent-${Date.now()}`;
+      const agentContent = data.message ?? 'I apologize, but I encountered an issue processing your request.';
+
       const agentMsg: ChatMessage = {
-        id: `agent-${Date.now()}`,
+        id: agentMsgId,
         role: 'agent',
-        content: data.message ?? 'I apologize, but I encountered an issue processing your request.',
+        content: agentContent,
         timestamp: new Date(),
         decision: data.decision,
         reasoningSteps: data.reasoningSteps,
         responseTime: data.responseTime,
       };
       setMessages((prev) => [...prev, agentMsg]);
+      
+      // Auto TTS if voice mode
+      if (autoVoice) {
+         window.dispatchEvent(new CustomEvent('play-tts', { detail: { id: agentMsgId, text: agentContent } }));
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -217,11 +226,25 @@ export default function ChatPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
+      
+      // VAD Setup
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.minDecibels = -60;
+      source.connect(analyser);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let silenceStart = Date.now();
+      let vadInterval: NodeJS.Timeout;
+
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
       recorder.onstop = async () => {
+        clearInterval(vadInterval);
+        audioContext.close().catch(() => {});
         stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         try {
           const formData = new FormData();
@@ -230,7 +253,7 @@ export default function ChatPage() {
           const data = await res.json();
           if (data.transcript) {
             setInputValue(data.transcript);
-            inputRef.current?.focus();
+            handleSend(data.transcript, true);
           }
         } catch {
           /* ignore */
@@ -239,10 +262,25 @@ export default function ChatPage() {
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
+      
+      // VAD Loop
+      vadInterval = setInterval(() => {
+        if (recorder.state !== 'recording') return;
+        analyser.getByteFrequencyData(dataArray);
+        const max = Math.max(...dataArray);
+        if (max > 10) { 
+          silenceStart = Date.now();
+        } else {
+          if (Date.now() - silenceStart > 1800) { 
+             recorder.stop();
+          }
+        }
+      }, 100);
+
     } catch {
       /* mic not available */
     }
-  }, [isRecording]);
+  }, [isRecording, handleSend]);
 
   /* ---- text to speech ---- */
   const handleTTS = useCallback(
@@ -269,6 +307,14 @@ export default function ChatPage() {
     },
     [playingMessageId]
   );
+
+  useEffect(() => {
+    const listener = ((e: CustomEvent) => {
+       handleTTS(e.detail.id, e.detail.text);
+    }) as EventListener;
+    window.addEventListener('play-tts', listener);
+    return () => window.removeEventListener('play-tts', listener);
+  }, [handleTTS]);
 
   /* ---- keyboard ---- */
   const handleKeyDown = (e: React.KeyboardEvent) => {

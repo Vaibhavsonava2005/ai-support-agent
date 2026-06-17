@@ -212,15 +212,19 @@ export default function AdminDashboard() {
       es = new EventSource('/api/events');
       es.onmessage = (e) => {
         try {
-          const data = JSON.parse(e.data);
-          if (data.type === 'stats_update') {
-            setStats(data.stats);
+          const parsed = JSON.parse(e.data);
+          const { event, data } = parsed;
+          if (event === 'stats_update') {
+            setStats(data);
           }
-          if (data.type === 'fraud_alert' && data.alert) {
-            setFraudAlerts((prev) => [data.alert, ...prev].slice(0, 20));
+          if (event === 'fraud_alert' && data) {
+            setFraudAlerts((prev) => [data, ...prev].slice(0, 20));
           }
-          if (data.type === 'reasoning_step' && data.step) {
+          if (event === 'reasoning_step' && data?.step) {
             setReasoningSteps((prev) => [data.step, ...prev].slice(0, 30));
+          }
+          if (event === 'new_conversation' || event === 'new_message') {
+            fetchStats(); // refresh convos list
           }
         } catch {
           /* ignore parse errors */
