@@ -17,42 +17,49 @@ export async function callGroq(
     temperature?: number;
   } = {}
 ): Promise<LLMResponse> {
-  const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_build',
-  });
-
   const { jsonMode = false, maxTokens = 2048, temperature = 0.3 } = options;
+  const apiKey = process.env.GROQ_API_KEY || 'dummy_key_for_build';
 
   const maxRetries = 3;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        max_tokens: maxTokens,
-        temperature,
-        ...(jsonMode && { response_format: { type: 'json_object' } }),
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          ...(jsonMode && { response_format: { type: 'json_object' } }),
+        }),
       });
 
-      const content = completion.choices[0]?.message?.content || '';
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content || '';
 
       return {
         content,
-        usage: completion.usage
-          ? {
-              promptTokens: completion.usage.prompt_tokens,
-              completionTokens: completion.usage.completion_tokens,
-              totalTokens: completion.usage.total_tokens,
-            }
-          : undefined,
+        usage: data.usage ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+        } : undefined,
       };
     } catch (error: any) {
       lastError = error;
-      console.error(`Groq API attempt ${attempt + 1} failed:`, error.message);
+      console.error(`Groq fetch attempt ${attempt + 1} failed:`, error.message);
 
-      // Wait before retry (exponential backoff)
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
       }

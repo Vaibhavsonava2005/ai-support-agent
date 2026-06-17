@@ -155,7 +155,7 @@ Based on the tool results and conversation history, provide your response as a J
       } catch (e) {
         throw new Error("Failed to parse JSON: " + llmResult.content);
       }
-      agentResponse = parsed.response || 'I apologize, but I\'m having trouble processing your request. Could you please try again?';
+      agentResponse = parsed.message || parsed.response || 'I apologize for the technical difficulty. Let me connect you with a human agent who can assist you right away.';
 
       if (parsed.decision) {
         decision = {
